@@ -1,117 +1,96 @@
-# Terraform Day 8
+# AWS VPC Peering Demo
 
 ## Overview
 
-This directory contains the Terraform configuration for Day 8, demonstrating:
-- S3 backend for remote state storage
-- AWS provider configuration
-- S3 bucket creation using `count` and `for_each`
-- Explicit resource dependency with `depends_on`
-- Resource lifecycle management
-- Local tag merging and variable validation
+This Terraform configuration creates a VPC peering connection between two AWS regions:
+
+- Primary region: `ap-south-1`
+- Secondary region: `us-east-1`
+
+The module provisions:
+- Two VPCs with CIDR blocks and DNS support enabled
+- One subnet in each VPC
+- Internet gateways and route tables
+- Security groups for the EC2 instances
+- Two Ubuntu EC2 instances
+- A VPC peering connection with route propagation between the two networks
 
 ## Prerequisites
 
 1. Install Terraform 1.5.0 or later.
 2. Configure AWS CLI credentials for the `default` profile.
-3. Ensure the AWS region `ap-south-1` is available for your account.
-4. Confirm the S3 backend bucket `terraform-state-bucket-22062026` exists and is accessible.
+3. Ensure the target AWS regions are available in your account.
+4. Create or import the EC2 key pairs named `vpc-peering-demo` in both regions, or override the key variables.
+5. Make sure the S3 backend bucket `terraform-state-bucket-22062026` exists if you plan to use the remote state configuration.
 
-## Files
+## File Structure
 
-- `backend.tf` - configures the remote state backend using AWS S3.
-- `provider.tf` - sets required providers and AWS provider configuration.
-- `variable.tf` - defines environment variables, region, S3 bucket names, tags, and validation rules.
-- `locals.tf` - defines reusable local tag values.
-- `main.tf` - creates several S3 buckets and demonstrates advanced Terraform features.
+- `backend.tf` – configures the remote S3 backend for Terraform state.
+- `provider.tf` – defines the AWS providers for the primary and secondary regions.
+- `variable.tf` – contains input variables for CIDRs, regions, instance type, and key pair names.
+- `data.tf` – fetches availability zones and Ubuntu AMIs for both regions.
+- `locals.tf` – defines user data scripts for the EC2 instances.
+- `main.tf` – creates the VPCs, subnets, gateways, routes, security groups, instances, and peering resources.
+- `outputs.tf` – exposes the created resource IDs and public/private IPs.
 
-## Step-by-Step Setup
+## Usage
 
-### 1. Open the directory
+### 1. Change into the module directory
 
 ```bash
-cd /home/ubuntu/Documents/practiceWork/terraform-projects/day8
+cd /home/ubuntu/terraform-projects/Aws-Vpc-Peering
 ```
 
-### 2. Review the backend configuration
-
-The backend is configured in `backend.tf`:
-
-- S3 bucket: `terraform-state-bucket-22062026`
-- Key: `infrastructure/staging/terraform.tfstate`
-- Region: `ap-south-1`
-- Encryption enabled
-- Locking enabled with `use_lockfile`
-
-### 3. Initialize Terraform
+### 2. Initialize Terraform
 
 ```bash
 terraform init
 ```
 
-This command initializes the working directory, downloads providers, and configures the S3 backend.
-
-### 4. Review the planned changes
+### 3. Review the planned changes
 
 ```bash
 terraform plan
 ```
 
-The plan will show creation of several S3 buckets with tags and lifecycle settings.
-
-### 5. Apply the infrastructure
+### 4. Apply the configuration
 
 ```bash
 terraform apply
 ```
 
-Confirm the apply prompt to create the resources.
-
-### 6. Destroy when finished
+### 5. Destroy the infrastructure when finished
 
 ```bash
 terraform destroy
 ```
 
-Confirm the destroy prompt to remove the resources.
+## Important Variables
 
-## Variable Overrides
+You can override defaults with a `.tfvars` file or CLI flags.
 
-You can customize the deployment by overriding variables with a `.tfvars` file or CLI flags.
-
-Examples:
+Example:
 
 ```hcl
 # terraform.tfvars
-environment = "dev"
-region      = "ap-south-1"
+primary_vpc_cidr      = "10.0.0.0/16"
+secondary_vpc_cidr    = "10.1.0.0/16"
+primary_subnet_cidr   = "10.0.1.0/24"
+secondary_subnet_cidr = "10.1.1.0/24"
+instance_type         = "t2.micro"
 ```
 
-Or with CLI:
+## Outputs
 
-```bash
-terraform plan -var="environment=prod"
-terraform apply -var="environment=prod"
-```
-
-## What This Configuration Creates
-
-- `aws_s3_bucket.example_count` using `count` and `var.s3_bucket_names`
-- `aws_s3_bucket.example_for_each` using `for_each` and `var.s3_bucket_Set`
-- `aws_s3_bucket.primary` with a bucket name using `var.environment`
-- `aws_s3_bucket.dependent` with `depends_on` ensuring creation after `primary`
-- `aws_s3_bucket.lifecycle_Example` with lifecycle rules:
-  - `create_before_destroy = true`
-  - `ignore_changes` for `tags["CreatedDate"]`
+After apply, Terraform will return values such as:
+- Primary and secondary VPC IDs
+- Primary and secondary subnet IDs
+- Public and private IPs of the EC2 instances
+- Security group IDs
+- VPC peering connection ID
 
 ## Notes
 
-- `variable.tf` contains validation for `environment` and `instance_count` values.
-- `locals.tf` merges `common_tags` with `var.resource_tags` to apply consistent tags.
-- The configuration currently uses AWS profile `default` and the `ap-south-1` region.
-
-## Troubleshooting
-
-- If `terraform init` fails, verify AWS credentials and permissions for S3.
-- If bucket names already exist, update `var.s3_bucket_names` or `var.s3_bucket_Set` to unique names.
-- Ensure the state backend bucket exists before applying.
+- The configuration uses the AWS profile `default`.
+- The EC2 instances are configured with user data to install Apache and serve a simple web page.
+- The security groups allow SSH and ICMP traffic from the peer VPC CIDR.
